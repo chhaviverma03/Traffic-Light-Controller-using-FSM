@@ -65,7 +65,7 @@ module traffic_tb();
     // MAIN TEST STIMULUS
     // ============================================================
     initial begin
-        $dumpfile("traffic_final_lokesh.vcd");
+        $dumpfile("traffic_final_chhavi.vcd");
         $dumpvars(0, traffic_tb);
 
         emergency = 0;
@@ -117,7 +117,7 @@ module traffic_tb();
         // ---- FINAL REPORT ----
         #100;
         $display("\n========================================");
-        $display("  FINAL REPORT FOR LOKESH");
+        $display("  FINAL REPORT FOR CHHAVI VERMA");
         if (error_count == 0)
             $display(" ALL TESTS PASSED SUCCESSFULLY");
         else
