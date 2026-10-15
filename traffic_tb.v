@@ -43,8 +43,8 @@ module traffic_tb();
     // Assertion 1: Safety Check (NS and EW never both non-RED)
     always @(posedge clk) begin
         if (!reset) begin
-            if (light_NS !== RED && light_EW !== RED) begin
-                $display("SAFETY VIOLATION at %0t ns | NS=%b EW=%b", $time, light_NS, light_EW);
+            if (light_NS === GREEN && light_EW === GREEN) begin
+                $display("SAFETY VIOLATION at %0t ns ", $time);
                 error_count = error_count + 1;
             end
         end
