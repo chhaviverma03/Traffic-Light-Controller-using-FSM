@@ -51,6 +51,7 @@ module traffic_tb();
     end
 
     // Assertion 2: Invalid State Check (Encoding verification)
+    //If either output has an invalid value, the code prints an error message and increments error_count.
     always @(posedge clk) begin
         if (!reset) begin
             if ((light_NS !== RED && light_NS !== YELLOW && light_NS !== GREEN) ||
