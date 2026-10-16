@@ -1,130 +1,150 @@
 `timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 16.10.2026 04:28:54
+// Design Name: 
+// Module Name: traffic_tb
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
 
 
 module traffic_tb();
+reg clk=0;
+reg rst;
+reg emergency;
+wire [2:0]light_NS,light_EW;
 
-    // ---- DUT signals ----
-    reg        clk;
-    reg        reset;
-    reg        emergency;
-    wire [2:0] light_NS;
-    wire [2:0] light_EW;
 
-    // ---- Light decode constants ----
-    localparam RED    = 3'b100;
-    localparam YELLOW = 3'b010;
-    localparam GREEN  = 3'b001;
+//----Light constants decode------
+localparam RED=3'b100;
+localparam YELLOW=3'b010;
+localparam GREEN=3'b001;
 
-    // ---- Error counter ----
-    integer error_count = 0;
+integer error_count=0;
 
-    // ---- Instantiate DUT (Final Parametrized Version) ----
-    traffic_lc #(
-        .GREEN_TIME     (5),
-        .YELLOW_TIME    (2),
-        .CLEARANCE_TIME (1),
-        .TIMER_WIDTH    (5)
-    ) uut (
-        .clk       (clk),
-        .reset     (reset),
-        .emergency (emergency),
-        .light_NS  (light_NS),
-        .light_EW  (light_EW)
-    );
+traffic_lc#(5,2,1,5) dut(clk,rst,emergency,light_NS,light_EW);
 
-    // ---- Clock Generation (10ns period) ----
-    initial clk = 0;
-    always #5 clk = ~clk;
+always #5 clk=~clk;
 
-    // ============================================================
-    // CONTINUOUS ASSERTIONS (Safety Monitoring)
-    // ============================================================
-    
-    // Assertion 1: Safety Check (NS and EW never both non-RED)
-    always @(posedge clk) begin
-        if (!reset) begin
-            if (light_NS !== RED && light_EW !== RED) begin
-                $display("SAFETY VIOLATION at %0t ns ", $time);
-                error_count = error_count + 1;
-            end
-        end
-    end
+//safety monitoring test
+//1.NO TWO LIGHT SHOULD BE NON RED AT ONCE
+always@(posedge clk)begin
+if(!rst)begin
+ if(light_NS!==RED && light_EW!==RED)begin
+   $display("SAFETY VILATION AT %0t ns ,NS=%b,EW=%b",$time,light_NS,light_EW);
+   error_count=error_count+1'b1;
+   end
+ end
+end
 
-    // Assertion 2: Invalid State Check (Encoding verification)
-    //If either output has an invalid value, the code prints an error message and increments error_count.
-    always @(posedge clk) begin
-        if (!reset) begin
-            if ((light_NS !== RED && light_NS !== YELLOW && light_NS !== GREEN) ||
-                (light_EW !== RED && light_EW !== YELLOW && light_EW !== GREEN)) begin
-                $display("INVALID ENCODING at %0t ns", $time);
-                error_count = error_count + 1;
-            end
-        end
-    end
+//2.INVALID ENCODING OF STATES
+always@(posedge clk)begin
+if(!rst)begin
+  if((light_NS!==GREEN && light_NS!==YELLOW && light_NS!==RED)||
+     (light_NS!==GREEN && light_NS!==YELLOW && light_NS!==RED))begin
+     $display("INVALID ENCODING AT %0t",$time);
+     error_count=error_count+1'b1;
+     end
+   end
+ end
+ 
+ //===============================================
+ //MAIN TEST STIMULAS
+ //===============================================
+ initial begin
+ $dumpfile("dump.vcd");
+ $dumpvars(0,traffic_tb);
+ 
+ emergency=0;
+ 
+ //T1:RESET BEHAVIOUR 
+ $display("-----------------------------");
+ $display("T1:RESET BEHAVIOUR TEST");
+ rst=1;
+ #20;
+ rst=0;
+@(negedge clk)
+if(light_NS!==GREEN || light_EW!==RED)begin
+  $display("T1:Failed:RESET DID NOT WORK | Expected NS=GREEN ,EW=RED");
+  error_count=error_count+1'b1;
+  end
+else
+  $display("T1:Passed :RESET SUCCESSFULL");
+ $display("-----------------------------");  
+ 
+ //T2:NORMAL OPERATIONS
+ $display("T2:NORMAL OPERATION ");
+ #440;
+ $display("T2:NORMAL OPERATION COMPLETED");
+  $display("-----------------------------");
+ 
+ //T3:MID CYCLE RESET(WHILE EW=GREEN AND NS=RED SO RESULT SHOULD BE REVERTED)
+  $display("T3:MID CYCLE RESET");
+  wait(light_EW===GREEN);
+  #20;
+  if(light_EW!==GREEN)begin
+   $display("T3 SETUP ERROR:FSM was not in EW_GREEN before reset");
+   error_count=error_count+1'b1;
+   end
+ //T3:MID-CYCLE RESET
+ @(negedge clk);
+ rst=1;
+ #10;
+ rst=0;
+ @(negedge clk)
+ if(light_NS!==GREEN||light_EW!==RED)begin
+   $display("T3:Failed:MID CYCLE RESET FAILED:STATE DID NOT RETUN TO GREEN");
+   error_count=error_count+1'b1;
+ end
+ else 
+   $display("T3:Passed:MID CYCLE RESET DONE");
+$display("-----------------------------");
 
-    // ============================================================
-    // MAIN TEST STIMULUS
-    // ============================================================
-    initial begin
-        $dumpfile("traffic_final_chhavi.vcd");
-        $dumpvars(0, traffic_tb);
-
-        emergency = 0;
-        
-        // ---- TEST 1: Initial Reset ----
-        $display("\n=== TEST 1: Reset Behavior ===");
-        reset = 1;
-        #20 reset = 0;
-        @(negedge clk);
-        if (light_NS !== GREEN || light_EW !== RED) begin
-            $display(" T1 FAIL: Expected NS=GREEN EW=RED");
-            error_count = error_count + 1;
-        end else $display("T1 PASS: Reset Successful");
-
-        // ---- TEST 2: Normal Operation (2 Cycles) ----
-        $display("\n=== TEST 2: Normal Operation (Check Waveforms) ===");
-        #440; // Approx 2 full FSM cycles
-        $display(" T2: Normal cycles completed.");
-
-        // ---- TEST 3: Mid-Cycle Reset ----
-        $display("\n=== TEST 3: Mid-Cycle Reset ===");
-        #30; reset = 1; #10; reset = 0;
-        @(negedge clk);
-        if (light_NS !== GREEN) begin
-            $display(" T3 FAIL: Did not return to NS_GREEN");
-            error_count = error_count + 1;
-        end else $display("T3 PASS: Mid-cycle reset handled");
-
-        // ---- TEST 4: Emergency Handling (Synchronized) ----
-        $display("\n=== TEST 4: Emergency Input & Recovery ===");
-        #50;
-        @(negedge clk); emergency = 1;
-        // Wait 2 cycles for Synchronizer stages
-        @(posedge clk); @(posedge clk); 
-        #5; // small offset
-        if (light_NS !== RED || light_EW !== RED) begin
-            $display(" T4 FAIL: Emergency did not trigger All-Red");
-            error_count = error_count + 1;
-        end else $display(" T4 PASS: Emergency All-Red active");
-
-        // Release Emergency and check recovery
-        @(negedge clk); emergency = 0;
-        #30; // Wait for safety clearance return
-        if (light_NS !== GREEN) begin
-            $display(" T4b FAIL: Recovery to NS_GREEN failed");
-            error_count = error_count + 1;
-        end else $display(" T4b PASS: Recovery Successful");
-
-        // ---- FINAL REPORT ----
-        #100;
-        $display("\n========================================");
-        $display("  FINAL REPORT FOR CHHAVI VERMA");
-        if (error_count == 0)
-            $display(" ALL TESTS PASSED SUCCESSFULLY");
-        else
-            $display("  %0d ERRORS FOUND IN DESIGN", error_count);
-        $display("========================================\n");
-        $finish;
-    end
-
-endmodule
+ //T4:EMERGENCY AND INPUT RECOVERY
+ $display("T4:EMERGENCY AND INPUT RECOVERY");
+ #50;
+ //T4(a):EMERGENCY
+ @(negedge clk); emergency=1;
+ //2 cycles wait for synchronization
+ @(posedge clk);@(posedge clk);
+ #25;
+ if(light_NS!==RED || light_EW!==RED)begin
+   $display("T4(a):Failed:EMERGENCY DID NOT TRIGGER ALL-RED");
+   error_count=error_count+1'b1;
+ end
+ else
+   $display("T4(a):Passed:EMERGENCY TRIGGERED ALL RED");
+  
+ //T4(b):RECOVERY INPUT
+ @(negedge clk);
+ emergency=0;
+ #50;
+ if(light_NS!==GREEN || light_EW!=RED)begin 
+   $display("T4(b):Failed:DID NOT RETURN TO NS_GREEN AFTER EMERGENCY=0");
+   error_count=error_count+1'b1;
+  end
+  else
+   $display("T4(B):Passed:RETUNRED TO GREEN");
+   
+   $display("================================");
+   $display("FINAL REPORT:-");
+   if(error_count==0)
+     $display("ALL TEST PASSED");
+   else
+     $display("%0d ERROR FOUND IN DESIGN",error_count);
+   $display("================================");   
+     
+  end
+  endmodule
